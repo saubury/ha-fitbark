@@ -17,7 +17,7 @@ async def test_options_flow_updates_coordinator_interval(
     mock_config_entry,
     mock_fitbark_api,
 ) -> None:
-    """The two-step options flow updates the coordinator's polling interval."""
+    """The single-page options flow updates the coordinator's polling interval."""
     mock_config_entry.add_to_hass(hass)
     assert await hass.config_entries.async_setup(mock_config_entry.entry_id)
     await hass.async_block_till_done()
@@ -30,13 +30,8 @@ async def test_options_flow_updates_coordinator_interval(
     assert result["step_id"] == "init"
 
     result = await hass.config_entries.options.async_configure(
-        result["flow_id"], user_input={CONF_SCAN_INTERVAL: 4}
-    )
-    assert result["type"] == "form"
-    assert result["step_id"] == "statistics"
-
-    result = await hass.config_entries.options.async_configure(
-        result["flow_id"], user_input={CONF_STATISTICS_SCAN_INTERVAL: 6}
+        result["flow_id"],
+        user_input={CONF_SCAN_INTERVAL: 4, CONF_STATISTICS_SCAN_INTERVAL: 6},
     )
     assert result["type"] == "create_entry"
     await hass.async_block_till_done()

@@ -28,8 +28,8 @@ and every schedule is easy to see and adjust:
   than the default mostly just re-fetches unchanged values.
 - **Hourly statistics** (see below): one `POST /api/v2/activity_series` call per dog per
   cycle once backfilled, default every **1 hour** (~24 calls/day/dog), also configurable
-  (in the same Configure dialog, as a second step) from 1-24 hours -- going below 1 hour
-  has no benefit, since FitBark's finest tracked resolution is hourly. Separately, a
+  in the same Configure dialog, from 1-24 hours -- going below 1 hour has no benefit,
+  since FitBark's finest tracked resolution is hourly. Separately, a
   one-time-ever 42-day backfill (up to 6 calls per dog) happens the first time a dog's
   statistics are created.
 
