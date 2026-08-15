@@ -6,6 +6,14 @@ OAUTH2_AUTHORIZE = "https://app.fitbark.com/oauth/authorize"
 OAUTH2_TOKEN = "https://app.fitbark.com/oauth/token"
 API_ROOT = "https://app.fitbark.com"
 
+# The redirect URI HA sends to FitBark's authorize endpoint for any instance
+# that isn't a bare local dev box (see README's "Testing against a local dev
+# Home Assistant instance" for the direct-callback exception). Must be
+# registered against the user's FitBark app before authorize will succeed --
+# see application_credentials.py's async_ensure_redirect_uri_registered,
+# which does this automatically.
+MY_HOME_ASSISTANT_REDIRECT = "https://my.home-assistant.io/redirect/oauth"
+
 # A full update is a single GET /api/v2/dog_relations call regardless of dog
 # count (confirmed live -- see api.py), but the underlying data itself only
 # changes as often as the collar syncs (periodic, not continuous) -- polling

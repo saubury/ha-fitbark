@@ -20,6 +20,7 @@ from homeassistant.helpers.selector import (
     NumberSelectorMode,
 )
 
+from .application_credentials import async_ensure_redirect_uri_registered
 from .const import (
     API_ROOT,
     CONF_SCAN_INTERVAL,
@@ -57,6 +58,28 @@ class FitBarkOAuth2FlowHandler(
         base OAuth2 flow -- no extra scope parameter required.
         """
         return {}
+
+    async def async_step_auth(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Before generating the authorize URL, ensure our redirect URI is registered.
+
+        A fresh FitBark developer app only has FitBark's own default
+        redirect (urn:ietf:wg:oauth:2.0:oob) registered, so authorize would
+        otherwise fail for every new user until they ran a manual curl
+        command. self.flow_impl is set by async_step_pick_implementation,
+        which always runs before this step. user_input is only non-None when
+        this step is re-entered with the external callback's result, at
+        which point registration has already happened.
+        """
+        if user_input is None:
+            client_id = getattr(self.flow_impl, "client_id", None)
+            client_secret = getattr(self.flow_impl, "client_secret", None)
+            if client_id and client_secret:
+                await async_ensure_redirect_uri_registered(
+                    self.hass, client_id, client_secret
+                )
+        return await super().async_step_auth(user_input)
 
     async def async_oauth_create_entry(self, data: dict[str, Any]) -> ConfigFlowResult:
         """Create the config entry, deduping on the FitBark account."""

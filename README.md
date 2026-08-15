@@ -110,28 +110,35 @@ option name isn't confirmed here.
 
 1. Register a developer app at the [FitBark developer portal](https://www.fitbark.com/dev/)
    to get a `client_id` and `client_secret`.
-2. Register `https://my.home-assistant.io/redirect/oauth` as your app's redirect URI.
-   This fixed URL works for any Home Assistant instance regardless of local network
-   setup -- it's a Nabu Casa-hosted page that bounces your browser back to your own
-   instance's `/auth/external/callback`. Register it by getting an app-level token and
-   posting the URI, per FitBark's docs:
 
-   ```bash
-   TOKEN=$(curl -s -X POST -H "Content-Type: application/json" -d '{
-     "grant_type": "client_credentials",
-     "client_id": "YOUR_CLIENT_ID",
-     "client_secret": "YOUR_CLIENT_SECRET",
-     "scope": "fitbark_open_api_2745H78RVS"
-   }' "https://app.fitbark.com/oauth/token" | jq -r .access_token)
+That's it -- registering `https://my.home-assistant.io/redirect/oauth` as your app's
+OAuth redirect URI (required by FitBark before it will accept an authorize request; a
+fresh app only has FitBark's own default registered, not this one) happens
+**automatically**, the first time you go through the "Add Integration" authorize step.
+The integration fetches an app-level token and merges this URI into whatever's already
+registered (never replacing an existing entry, in case you reuse the same FitBark app
+elsewhere) before generating the authorize URL.
 
-   curl -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d '{
-     "redirect_uri": "https://my.home-assistant.io/redirect/oauth"
-   }' "https://app.fitbark.com/api/v2/redirect_urls"
-   ```
+If that automatic step fails for some reason (logged as a warning, never blocks the
+flow -- you'll just see FitBark reject the authorize request with a redirect_uri
+mismatch), register it manually instead:
 
-   Note this **replaces** any existing registered redirect URIs (they're one string,
-   `\r`-separated) -- if you already use this app for something else with its own
-   redirect URI, `GET` the current value first and include it in the new string.
+```bash
+TOKEN=$(curl -s -X POST -H "Content-Type: application/json" -d '{
+  "grant_type": "client_credentials",
+  "client_id": "YOUR_CLIENT_ID",
+  "client_secret": "YOUR_CLIENT_SECRET",
+  "scope": "fitbark_open_api_2745H78RVS"
+}' "https://app.fitbark.com/oauth/token" | jq -r .access_token)
+
+curl -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d '{
+  "redirect_uri": "https://my.home-assistant.io/redirect/oauth"
+}' "https://app.fitbark.com/api/v2/redirect_urls"
+```
+
+Note this **replaces** any existing registered redirect URIs (they're one string,
+`\r`-separated) -- if you already use this app for something else with its own
+redirect URI, `GET` the current value first and include it in the new string.
 
 ## Installation
 
