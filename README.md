@@ -16,20 +16,19 @@ Per dog, this integration exposes:
 It does **not** expose location, sleep score, or FitBark's computed health index --
 these are not available through the public developer API.
 
-## Known limitations
+## How it works
 
-Endpoint paths, HTTP methods, and field names in this integration are taken from
-FitBark's official v2 Postman API documentation. One important gap: **the official docs
-do not document a collar battery field anywhere.** `api.py`'s `async_get_dog_info`
-opportunistically probes the Get Dog Info response for a few plausible key names
-(`battery_level`, `battery_percentage`, `battery`); if your account's real response
-doesn't contain any of them, the battery sensor will simply stay `unavailable`. Please
-open an issue with your dog's raw `GET /api/v2/dog/{dog_slug}` response (redact the
-`slug`) if you find the real field name, so it can be added to the probe list.
+Endpoint paths, HTTP methods, and field names are taken from FitBark's official v2
+Postman API documentation and confirmed against a live account. A single
+`GET /api/v2/dog_relations` call returns every owned dog's current snapshot in one
+shot -- activity points, the goal in effect today, the active/play/rest minute
+breakdown, and a `battery_level` field -- so a full update cycle is exactly one HTTP
+request regardless of how many dogs are on the account. This isn't documented by
+FitBark (the official docs show battery nowhere at all), but has been verified live.
 
-The daily-goal percentage is computed client-side (today's `activity_totals` divided by
-the goal in effect today from `daily_goal`), since FitBark's totals endpoint doesn't
-return a percentage directly.
+The daily-goal percentage shown by `activity_goal_percent` is computed client-side
+(`activity_value / daily_goal * 100`), since FitBark's own response doesn't include a
+percentage directly.
 
 ## Prerequisites (manual, one-time)
 
@@ -75,3 +74,26 @@ Each dog on your account appears as a separate device with the sensors listed ab
 pip install -r requirements_test.txt
 pytest tests/
 ```
+
+### Testing against a local dev Home Assistant instance
+
+If you run `hass` locally (e.g. `hass -c ./dev_config`) rather than through
+`my.home-assistant.io`-reachable remote access, the account-linking step will fail with
+*"Invalid state. Is My Home Assistant configured to go to the right instance?"* This
+happens because `default_config:` hard-depends on the `my` integration, which always
+routes the OAuth callback through `my.home-assistant.io` -- and that service has no way
+to bounce a browser back to a bare `localhost` instance it's never seen before.
+
+Fix: don't use `default_config:` in your dev `configuration.yaml`; load only what you
+need instead (this avoids pulling in `my`):
+
+```yaml
+frontend:
+config:
+http:
+application_credentials:
+```
+
+Then also register the direct local callback with FitBark, alongside your other
+redirect URIs (see the `curl` snippet above, adding
+`http://localhost:8123/auth/external/callback` to the `redirect_uri` string).

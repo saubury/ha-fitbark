@@ -20,7 +20,7 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.fitbark.const import API_ROOT
 
-from .const import ACCESS_TOKEN, CLIENT_ID, CLIENT_SECRET, DOG_SLUG, USER_ID
+from .const import ACCESS_TOKEN, CLIENT_ID, CLIENT_SECRET, USER_ID
 
 pytest_plugins = "pytest_homeassistant_custom_component"
 
@@ -70,20 +70,8 @@ def mock_config_entry() -> MockConfigEntry:
 
 @pytest.fixture
 def mock_fitbark_api(aioclient_mock):
-    """Stub every FitBark endpoint with a single healthy dog's data."""
+    """Stub the single dog_relations call with a healthy one-dog account."""
     aioclient_mock.get(
         f"{API_ROOT}/api/v2/dog_relations", json=load_fixture("dogs_list.json")
-    )
-    aioclient_mock.get(
-        f"{API_ROOT}/api/v2/dog/{DOG_SLUG}", json=load_fixture("dog_info.json")
-    )
-    aioclient_mock.post(
-        f"{API_ROOT}/api/v2/activity_totals", json=load_fixture("activity_total.json")
-    )
-    aioclient_mock.get(
-        f"{API_ROOT}/api/v2/daily_goal/{DOG_SLUG}", json=load_fixture("daily_goal.json")
-    )
-    aioclient_mock.post(
-        f"{API_ROOT}/api/v2/time_breakdown", json=load_fixture("time_breakdown.json")
     )
     return aioclient_mock

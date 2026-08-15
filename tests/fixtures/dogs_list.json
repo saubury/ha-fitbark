@@ -1,11 +1,22 @@
 {
-  "_note": "CONFIRMED against FitBark's official Postman docs (GET /api/v2/dog_relations). Only status=OWNER entries are kept by async_get_dogs.",
+  "_note": "CONFIRMED live against a real account (GET /api/v2/dog_relations) -- every field a dashboard needs is embedded per dog, including the undocumented battery_level. Only status=OWNER entries are kept by async_get_snapshots.",
   "dog_relations": [
     {
       "id": 1,
       "status": "OWNER",
       "date": "2014-08-19T20:23:52.000Z",
-      "dog": { "slug": "fido-1234", "name": "Fido", "bluetooth_id": "c2bc4ee2809939c3" }
+      "dog": {
+        "slug": "fido-1234",
+        "name": "Fido",
+        "bluetooth_id": "c2bc4ee2809939c3",
+        "activity_value": "452.0",
+        "daily_goal": "500.0",
+        "min_active": 63,
+        "min_play": 21,
+        "min_rest": 540,
+        "battery_level": 76,
+        "breed1": { "id": 16, "name": "Labrador" }
+      }
     }
   ]
 }

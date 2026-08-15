@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers import aiohttp_client
 from homeassistant.helpers.update_coordinator import UpdateFailed
 
@@ -29,78 +30,89 @@ async def _build_coordinator(hass: HomeAssistant, entry) -> FitBarkDataUpdateCoo
     return FitBarkDataUpdateCoordinator(hass, entry, api)
 
 
-def _mock_healthy_dog(aioclient_mock, slug: str) -> None:
-    aioclient_mock.get(
-        f"{API_ROOT}/api/v2/dog/{slug}",
-        json={"dog": {"slug": slug, "name": slug, "breed1": {"name": "Mixed"}}},
-    )
-    aioclient_mock.post(
-        f"{API_ROOT}/api/v2/activity_totals", json={"activity_value": 100}
-    )
-    aioclient_mock.get(
-        f"{API_ROOT}/api/v2/daily_goal/{slug}",
-        json={"daily_goals": [{"goal": 200, "date": "2020-01-01"}]},
-    )
-    aioclient_mock.post(
-        f"{API_ROOT}/api/v2/time_breakdown",
-        json={"activity_level": {"min_active": 10, "min_play": 5, "min_rest": 100}},
-    )
-
-
-async def test_multi_dog_partial_failure_keeps_previous_snapshot(
+async def test_single_call_returns_all_dogs(
     hass: HomeAssistant, mock_config_entry, aioclient_mock
 ) -> None:
-    """One dog failing to update doesn't blank out a previously-good snapshot."""
+    """One dog_relations call is enough to populate every owned dog."""
     mock_config_entry.add_to_hass(hass)
     other_slug = "rex-5678"
-
     aioclient_mock.get(
         f"{API_ROOT}/api/v2/dog_relations",
         json={
             "dog_relations": [
-                {"status": "OWNER", "dog": {"slug": DOG_SLUG, "name": "Fido"}},
-                {"status": "OWNER", "dog": {"slug": other_slug, "name": "Rex"}},
+                {
+                    "status": "OWNER",
+                    "dog": {
+                        "slug": DOG_SLUG,
+                        "name": "Fido",
+                        "activity_value": "100",
+                        "daily_goal": "200",
+                        "min_active": 10,
+                        "min_play": 5,
+                        "min_rest": 100,
+                        "battery_level": 80,
+                    },
+                },
+                {
+                    "status": "FRIEND",
+                    "dog": {"slug": other_slug, "name": "NotMine"},
+                },
             ]
         },
     )
-    _mock_healthy_dog(aioclient_mock, DOG_SLUG)
-    _mock_healthy_dog(aioclient_mock, other_slug)
 
     coordinator = await _build_coordinator(hass, mock_config_entry)
     await coordinator.async_refresh()
-    assert set(coordinator.data) == {DOG_SLUG, other_slug}
-    first_cycle_rex = coordinator.data[other_slug]
 
-    aioclient_mock.clear_requests()
+    assert set(coordinator.data) == {DOG_SLUG}
+    assert len(aioclient_mock.mock_calls) == 1
+    snapshot = coordinator.data[DOG_SLUG]
+    assert snapshot.activity_points == 100
+    assert snapshot.activity_goal_percent == 50.0
+    assert snapshot.battery_level == 80
+
+
+async def test_malformed_dog_record_is_skipped(
+    hass: HomeAssistant, mock_config_entry, aioclient_mock
+) -> None:
+    """A malformed record for one dog doesn't blank out the others."""
+    mock_config_entry.add_to_hass(hass)
     aioclient_mock.get(
         f"{API_ROOT}/api/v2/dog_relations",
         json={
             "dog_relations": [
+                {"status": "OWNER", "dog": {"name": "Missing slug entirely"}},
                 {"status": "OWNER", "dog": {"slug": DOG_SLUG, "name": "Fido"}},
-                {"status": "OWNER", "dog": {"slug": other_slug, "name": "Rex"}},
             ]
         },
     )
-    _mock_healthy_dog(aioclient_mock, DOG_SLUG)
-    aioclient_mock.get(f"{API_ROOT}/api/v2/dog/{other_slug}", status=500)
 
+    coordinator = await _build_coordinator(hass, mock_config_entry)
     await coordinator.async_refresh()
+
     assert coordinator.last_update_success
-    assert coordinator.data[DOG_SLUG].minutes_active == 10
-    assert coordinator.data[other_slug] is first_cycle_rex
+    assert set(coordinator.data) == {DOG_SLUG}
 
 
-async def test_all_dogs_failing_raises_update_failed(
+async def test_api_failure_raises_update_failed(
     hass: HomeAssistant, mock_config_entry, aioclient_mock
 ) -> None:
-    """If every dog fails to update, the coordinator update fails outright."""
+    """A failed dog_relations call fails the whole update."""
     mock_config_entry.add_to_hass(hass)
-    aioclient_mock.get(
-        f"{API_ROOT}/api/v2/dog_relations",
-        json={"dog_relations": [{"status": "OWNER", "dog": {"slug": DOG_SLUG, "name": "Fido"}}]},
-    )
-    aioclient_mock.get(f"{API_ROOT}/api/v2/dog/{DOG_SLUG}", status=500)
+    aioclient_mock.get(f"{API_ROOT}/api/v2/dog_relations", status=500)
 
     coordinator = await _build_coordinator(hass, mock_config_entry)
     with pytest.raises(UpdateFailed):
+        await coordinator._async_update_data()
+
+
+async def test_auth_failure_raises_config_entry_auth_failed(
+    hass: HomeAssistant, mock_config_entry, aioclient_mock
+) -> None:
+    """A 401 from FitBark surfaces as a reauth-triggering error."""
+    mock_config_entry.add_to_hass(hass)
+    aioclient_mock.get(f"{API_ROOT}/api/v2/dog_relations", status=401)
+
+    coordinator = await _build_coordinator(hass, mock_config_entry)
+    with pytest.raises(ConfigEntryAuthFailed):
         await coordinator._async_update_data()

@@ -9,14 +9,20 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
-from .api import FitBarkApiClient, FitBarkAuthError, FitBarkApiError, FitBarkDogSnapshot
+from .api import FitBarkApiClient, FitBarkApiError, FitBarkAuthError, FitBarkDogSnapshot
 from .const import DEFAULT_SCAN_INTERVAL, DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
 
 class FitBarkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, FitBarkDogSnapshot]]):
-    """Coordinates fetching FitBark data for every dog on one account."""
+    """Coordinates fetching FitBark data for every dog on one account.
+
+    A full update is a single GET /api/v2/dog_relations call -- FitBark
+    embeds every dog's current snapshot (activity, goal, minutes, battery)
+    directly in that response, confirmed live -- so there's no per-dog fan
+    out here to isolate failures for.
+    """
 
     def __init__(
         self, hass: HomeAssistant, entry: ConfigEntry, api: FitBarkApiClient
@@ -32,30 +38,8 @@ class FitBarkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, FitBarkDogSna
 
     async def _async_update_data(self) -> dict[str, FitBarkDogSnapshot]:
         try:
-            dogs = await self.api.async_get_dogs()
+            return await self.api.async_get_snapshots()
         except FitBarkAuthError as err:
             raise ConfigEntryAuthFailed from err
         except FitBarkApiError as err:
-            raise UpdateFailed(f"Error fetching FitBark dog list: {err}") from err
-
-        snapshots: dict[str, FitBarkDogSnapshot] = {}
-        errors = 0
-
-        for dog in dogs:
-            try:
-                snapshots[dog.slug] = await self.api.async_get_dog_snapshot(dog)
-            except FitBarkAuthError as err:
-                raise ConfigEntryAuthFailed from err
-            except FitBarkApiError as err:
-                errors += 1
-                _LOGGER.warning(
-                    "Failed to update FitBark data for dog %s: %s", dog.slug, err
-                )
-                previous = self.data.get(dog.slug) if self.data else None
-                if previous is not None:
-                    snapshots[dog.slug] = previous
-
-        if dogs and errors == len(dogs):
-            raise UpdateFailed("Failed to update any dog on this FitBark account")
-
-        return snapshots
+            raise UpdateFailed(f"Error fetching FitBark data: {err}") from err
