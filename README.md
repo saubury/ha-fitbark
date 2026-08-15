@@ -41,7 +41,23 @@ range per call, so a wide backfill (42 days on first setup) is split into consec
 7-day windows automatically. After the initial backfill, it refreshes hourly on its own
 schedule, independent of the 5-minute sensor polling. This isn't a regular entity --
 external statistics aren't tied to one -- so it won't appear in Developer Tools →
-States.
+States. The Developer Tools → Statistics page is a management table, not a chart, so
+add a **Statistics Graph** card to a dashboard to actually see the history:
+
+```yaml
+type: statistics-graph
+title: <Dog name> Activity
+stat_types:
+  - change
+chart_type: bar
+entities:
+  - fitbark:<dog_slug_with_underscores>_activity
+```
+
+Use `change` (not `sum`) as the stat type -- `sum` is the raw cumulative running total
+(an ever-climbing odometer, matching how HA stores the data internally), while `change`
+shows the actual per-period amount as bars, which reads far more naturally for activity
+data. Find your dog's exact statistic ID in Developer Tools → Statistics.
 
 ## Prerequisites (manual, one-time)
 
