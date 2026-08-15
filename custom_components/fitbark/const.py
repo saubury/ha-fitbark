@@ -9,11 +9,14 @@ OAUTH2_TOKEN = "https://app.fitbark.com/oauth/token"
 API_ROOT = "https://app.fitbark.com"
 
 # A full update is a single GET /api/v2/dog_relations call regardless of dog
-# count (confirmed live -- see api.py), so this can be more aggressive than
-# the original N+1-calls-per-cycle design called for. FitBark's device sync
-# cadence is itself periodic, so sub-5-minute polling mostly wouldn't return
-# new data anyway. Still conservative relative to undocumented rate limits.
-DEFAULT_SCAN_INTERVAL = timedelta(minutes=5)
+# count (confirmed live -- see api.py), but the underlying data itself only
+# changes as often as the collar syncs (periodic, not continuous) -- polling
+# much faster than that just re-fetches unchanged values. User-configurable
+# via the options flow; this is only the fallback default.
+CONF_SCAN_INTERVAL = "scan_interval"
+DEFAULT_SCAN_INTERVAL_MINUTES = 20
+MIN_SCAN_INTERVAL_MINUTES = 5
+MAX_SCAN_INTERVAL_MINUTES = 120
 
 # How often to import hourly activity_series data into HA's long-term
 # statistics (see statistics.py). Hourly data only changes once an hour at

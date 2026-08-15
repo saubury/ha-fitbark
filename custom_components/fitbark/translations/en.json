@@ -20,6 +20,17 @@
       "default": "Successfully authenticated with FitBark."
     }
   },
+  "options": {
+    "step": {
+      "init": {
+        "title": "FitBark options",
+        "description": "How often to poll FitBark for updated sensor data (activity, goal, minutes, battery). FitBark's collar sync isn't continuous, so shorter intervals mostly just re-fetch unchanged values.",
+        "data": {
+          "scan_interval": "Polling interval (minutes)"
+        }
+      }
+    }
+  },
   "application_credentials": {
     "description": "Enter the `client_id` and `client_secret` from your FitBark developer application. Register `{redirect_url}` as the app's redirect URI before continuing -- see {more_info_url}."
   },

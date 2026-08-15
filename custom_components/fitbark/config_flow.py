@@ -5,10 +5,24 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from homeassistant.config_entries import ConfigFlowResult
+import voluptuous as vol
+
+from homeassistant.config_entries import (
+    ConfigEntry,
+    ConfigFlowResult,
+    OptionsFlowWithReload,
+)
+from homeassistant.core import callback
 from homeassistant.helpers import aiohttp_client, config_entry_oauth2_flow
 
-from .const import API_ROOT, DOMAIN
+from .const import (
+    API_ROOT,
+    CONF_SCAN_INTERVAL,
+    DEFAULT_SCAN_INTERVAL_MINUTES,
+    DOMAIN,
+    MAX_SCAN_INTERVAL_MINUTES,
+    MIN_SCAN_INTERVAL_MINUTES,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -74,4 +88,39 @@ class FitBarkOAuth2FlowHandler(
         """Confirm reauth, then run the standard OAuth2 implementation picker."""
         return await self.async_step_pick_implementation(
             user_input={"implementation": self._get_reauth_entry().data["auth_implementation"]}
+        )
+
+    @staticmethod
+    @callback
+    def async_get_options_flow(config_entry: ConfigEntry) -> FitBarkOptionsFlowHandler:
+        """Return the options flow for adjusting the polling interval."""
+        return FitBarkOptionsFlowHandler()
+
+
+class FitBarkOptionsFlowHandler(OptionsFlowWithReload):
+    """Handle FitBark options -- currently just the sensor polling interval."""
+
+    async def async_step_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Manage the options."""
+        if user_input is not None:
+            return self.async_create_entry(data=user_input)
+
+        options_schema = vol.Schema(
+            {
+                vol.Optional(
+                    CONF_SCAN_INTERVAL, default=DEFAULT_SCAN_INTERVAL_MINUTES
+                ): vol.All(
+                    vol.Coerce(int),
+                    vol.Range(min=MIN_SCAN_INTERVAL_MINUTES, max=MAX_SCAN_INTERVAL_MINUTES),
+                ),
+            }
+        )
+
+        return self.async_show_form(
+            step_id="init",
+            data_schema=self.add_suggested_values_to_schema(
+                options_schema, self.config_entry.options
+            ),
         )

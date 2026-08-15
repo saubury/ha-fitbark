@@ -16,6 +16,20 @@ Per dog, this integration exposes:
 It does **not** expose location, sleep score, or FitBark's computed health index --
 these are not available through the public developer API.
 
+## API call volume
+
+FitBark doesn't publish a rate limit, so this integration is deliberately conservative
+and every schedule is easy to see and adjust:
+
+- **Sensor entities**: one `GET /api/v2/dog_relations` call per poll, covering every dog
+  on the account in a single request. Default interval is **20 minutes** (~72 calls/day),
+  configurable from **Settings → Devices & Services → FitBark → Configure** down to 5
+  minutes or up to 2 hours. FitBark's collar sync isn't continuous, so polling much
+  faster than the default mostly just re-fetches unchanged values.
+- **Hourly statistics** (see below): one `POST /api/v2/activity_series` call per dog per
+  hour once backfilled (~24 calls/day/dog), plus a one-time-ever 42-day backfill (up to 6
+  calls per dog) the first time a dog's statistics are created.
+
 ## How it works
 
 Endpoint paths, HTTP methods, and field names are taken from FitBark's official v2

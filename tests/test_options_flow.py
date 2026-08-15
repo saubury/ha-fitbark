@@ -1,0 +1,39 @@
+"""Tests for the FitBark options flow (polling interval)."""
+
+from __future__ import annotations
+
+from datetime import timedelta
+
+from homeassistant.core import HomeAssistant
+
+from custom_components.fitbark.const import CONF_SCAN_INTERVAL
+
+
+async def test_options_flow_updates_coordinator_interval(
+    recorder_mock,
+    enable_custom_integrations,
+    hass: HomeAssistant,
+    setup_credentials,
+    mock_config_entry,
+    mock_fitbark_api,
+) -> None:
+    """Changing the polling interval via options reloads the entry with it."""
+    mock_config_entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
+
+    # Default interval before any options are set.
+    assert mock_config_entry.runtime_data.update_interval == timedelta(minutes=20)
+
+    result = await hass.config_entries.options.async_init(mock_config_entry.entry_id)
+    assert result["type"] == "form"
+    assert result["step_id"] == "init"
+
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], user_input={CONF_SCAN_INTERVAL: 45}
+    )
+    assert result["type"] == "create_entry"
+    await hass.async_block_till_done()
+
+    assert mock_config_entry.options[CONF_SCAN_INTERVAL] == 45
+    assert mock_config_entry.runtime_data.update_interval == timedelta(minutes=45)
