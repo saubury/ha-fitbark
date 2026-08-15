@@ -35,14 +35,25 @@ percentage directly.
 In addition to the current-snapshot sensors above, each dog's hourly activity is
 imported into Home Assistant's long-term statistics (the same mechanism used by energy
 and utility integrations), visible under **Developer Tools → Statistics** or in a
-Statistics Graph card, as `FitBark: <dog name> Activity`. This uses
-`POST /api/v2/activity_series` at `HOURLY` resolution, which FitBark caps to a 7-day
-range per call, so a wide backfill (42 days on first setup) is split into consecutive
-7-day windows automatically. After the initial backfill, it refreshes hourly on its own
-schedule, independent of the 5-minute sensor polling. This isn't a regular entity --
-external statistics aren't tied to one -- so it won't appear in Developer Tools →
-States. The Developer Tools → Statistics page is a management table, not a chart, so
-add a **Statistics Graph** card to a dashboard to actually see the history:
+Statistics Graph card. Four statistics are imported per dog, one per metric FitBark
+returns per hour:
+
+| Statistic ID suffix | Name | Unit |
+|---|---|---|
+| `_activity` | `<Dog name> Activity` | BarkPoints |
+| `_minutes_play` | `<Dog name> Minutes Played` | min |
+| `_minutes_active` | `<Dog name> Minutes Active` | min |
+| `_minutes_rest` | `<Dog name> Minutes Rested` | min |
+
+This uses `POST /api/v2/activity_series` at `HOURLY` resolution, which FitBark caps to
+a 7-day range per call, so a wide backfill (42 days on first setup) is split into
+consecutive 7-day windows automatically -- one shared fetch per dog covers all four
+metrics, since each hourly record already carries all of them. After the initial
+backfill, it refreshes hourly on its own schedule, independent of the 5-minute sensor
+polling. These aren't regular entities -- external statistics aren't tied to one -- so
+none of this appears in Developer Tools → States. The Developer Tools → Statistics page
+is a management table, not a chart, so add a **Statistics Graph** card to a dashboard to
+actually see the history:
 
 ```yaml
 type: statistics-graph
@@ -57,7 +68,26 @@ entities:
 Use `change` (not `sum`) as the stat type -- `sum` is the raw cumulative running total
 (an ever-climbing odometer, matching how HA stores the data internally), while `change`
 shows the actual per-period amount as bars, which reads far more naturally for activity
-data. Find your dog's exact statistic ID in Developer Tools → Statistics.
+data. Find your dog's exact statistic IDs in Developer Tools → Statistics.
+
+To see the play/active/rest **proportion of each hour** (each hour's three minute
+values sum to 60), add all three minute statistics to one card:
+
+```yaml
+type: statistics-graph
+title: <Dog name> Hourly Breakdown
+stat_types:
+  - change
+chart_type: bar
+entities:
+  - fitbark:<dog_slug_with_underscores>_minutes_play
+  - fitbark:<dog_slug_with_underscores>_minutes_active
+  - fitbark:<dog_slug_with_underscores>_minutes_rest
+```
+
+If the three series render as grouped rather than stacked bars, use the card's visual
+editor (its "Stack" toggle) rather than a hand-written YAML key -- the exact stacking
+option name isn't confirmed here.
 
 ## Prerequisites (manual, one-time)
 

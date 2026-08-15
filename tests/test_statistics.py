@@ -128,6 +128,125 @@ async def test_second_run_only_adds_new_hours(
     assert last[statistic_id][0]["sum"] == pytest.approx(70.0)
 
 
+async def test_minute_breakdown_metrics_are_imported(
+    recorder_mock, hass: HomeAssistant, aioclient_mock
+) -> None:
+    """min_play/min_active/min_rest are imported as their own statistics."""
+    dog = FitBarkDog(slug=DOG_SLUG, name="Fido", tzname="UTC")
+    aioclient_mock.post(
+        f"{API_ROOT}/api/v2/activity_series",
+        json={
+            "activity_series": {
+                "records": [
+                    {
+                        "date": "2024-06-01 10:00:00",
+                        "activity_value": 50,
+                        "min_play": 5,
+                        "min_active": 20,
+                        "min_rest": 35,
+                    }
+                ]
+            }
+        },
+    )
+
+    await async_import_dog_activity_statistics(hass, _build_client(hass), dog)
+    await hass.async_block_till_done()
+    await async_recorder_block_till_done(hass)
+
+    for metric_key, expected in (
+        ("minutes_play", 5.0),
+        ("minutes_active", 20.0),
+        ("minutes_rest", 35.0),
+    ):
+        statistic_id = statistic_id_for_dog(DOG_SLUG, metric_key)
+        last = await get_instance(hass).async_add_executor_job(
+            get_last_statistics, hass, 1, statistic_id, False, {"sum", "state"}
+        )
+        assert last[statistic_id][0]["state"] == pytest.approx(expected)
+        assert last[statistic_id][0]["sum"] == pytest.approx(expected)
+
+
+async def test_new_metric_backfills_fully_despite_sibling_having_history(
+    recorder_mock, hass: HomeAssistant, aioclient_mock
+) -> None:
+    """A metric with no prior history gets the full backfill, even if a
+    sibling metric (e.g. from before this metric existed) already has
+    recent history -- regression test for a bug where the shared fetch
+    window was bounded by the metric that already had data, silently
+    starving metrics that had none."""
+    from homeassistant.components.recorder.models import (
+        StatisticData,
+        StatisticMeanType,
+        StatisticMetaData,
+    )
+    from homeassistant.components.recorder.statistics import (
+        async_add_external_statistics,
+    )
+    from custom_components.fitbark.const import DOMAIN
+
+    dog = FitBarkDog(slug=DOG_SLUG, name="Fido", tzname="UTC")
+    activity_statistic_id = statistic_id_for_dog(DOG_SLUG, "activity")
+
+    # Seed only the "activity" statistic with a single recent point, as if
+    # it were imported hours ago while "minutes_play" never has been.
+    recent_start = dt_util.utcnow().replace(minute=0, second=0, microsecond=0)
+    async_add_external_statistics(
+        hass,
+        StatisticMetaData(
+            mean_type=StatisticMeanType.NONE,
+            has_sum=True,
+            name="Fido Activity",
+            source=DOMAIN,
+            statistic_id=activity_statistic_id,
+            unit_class=None,
+            unit_of_measurement="BarkPoints",
+        ),
+        [StatisticData(start=recent_start, state=10.0, sum=10.0)],
+    )
+    await hass.async_block_till_done()
+    await async_recorder_block_till_done(hass)
+
+    # Two records: one old (well outside a "since recent_start" window) and
+    # one at recent_start itself.
+    old_date = (recent_start - timedelta(days=30)).strftime("%Y-%m-%d %H:%M:%S")
+    aioclient_mock.post(
+        f"{API_ROOT}/api/v2/activity_series",
+        json={
+            "activity_series": {
+                "records": [
+                    {
+                        "date": old_date,
+                        "activity_value": 1,
+                        "min_play": 7,
+                        "min_active": 0,
+                        "min_rest": 0,
+                    },
+                    {
+                        "date": recent_start.strftime("%Y-%m-%d %H:%M:%S"),
+                        "activity_value": 2,
+                        "min_play": 9,
+                        "min_active": 0,
+                        "min_rest": 0,
+                    },
+                ]
+            }
+        },
+    )
+
+    await async_import_dog_activity_statistics(hass, _build_client(hass), dog)
+    await hass.async_block_till_done()
+    await async_recorder_block_till_done(hass)
+
+    play_statistic_id = statistic_id_for_dog(DOG_SLUG, "minutes_play")
+    last = await get_instance(hass).async_add_executor_job(
+        get_last_statistics, hass, 2, play_statistic_id, False, {"sum", "state"}
+    )
+    # Both the old and the recent record must have been imported for the
+    # previously-history-less metric -- sum should reflect both (7 + 9).
+    assert last[play_statistic_id][0]["sum"] == pytest.approx(16.0)
+
+
 async def async_recorder_block_till_done(hass: HomeAssistant) -> None:
     """Wait for the recorder's queued import job to finish processing."""
     await get_instance(hass).async_block_till_done()
