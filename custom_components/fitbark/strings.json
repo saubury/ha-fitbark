@@ -1,0 +1,36 @@
+{
+  "config": {
+    "step": {
+      "pick_implementation": {
+        "title": "Pick FitBark authentication method"
+      },
+      "reauth_confirm": {
+        "title": "Reauthenticate FitBark",
+        "description": "Your FitBark access has expired or been revoked. Please log in again to continue."
+      }
+    },
+    "abort": {
+      "already_configured": "This FitBark account is already configured.",
+      "reauth_successful": "Re-authentication was successful.",
+      "oauth_error": "Error retrieving an access token.",
+      "oauth_timeout": "Timeout resolving OAuth token.",
+      "missing_configuration": "The FitBark integration is not configured. Please follow the documentation to add application credentials first."
+    },
+    "create_entry": {
+      "default": "Successfully authenticated with FitBark."
+    }
+  },
+  "application_credentials": {
+    "description": "Enter the `client_id` and `client_secret` from your FitBark developer application. Register `{redirect_url}` as the app's redirect URI before continuing -- see {more_info_url}."
+  },
+  "entity": {
+    "sensor": {
+      "activity_points_today": { "name": "Activity points today" },
+      "activity_goal_percent": { "name": "Activity goal" },
+      "minutes_active": { "name": "Active minutes" },
+      "minutes_play": { "name": "Play minutes" },
+      "minutes_rest": { "name": "Rest minutes" },
+      "battery_level": { "name": "Battery" }
+    }
+  }
+}

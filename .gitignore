@@ -1,0 +1,7 @@
+SECRETS.md
+FitBarkAPI.pdf
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.coverage

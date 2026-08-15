@@ -1,0 +1,12 @@
+{
+  "domain": "fitbark",
+  "name": "FitBark",
+  "codeowners": ["@saubury"],
+  "config_flow": true,
+  "dependencies": ["application_credentials"],
+  "documentation": "https://github.com/saubury/ha-fitbark",
+  "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/saubury/ha-fitbark/issues",
+  "requirements": [],
+  "version": "0.1.0"
+}

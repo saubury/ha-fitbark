@@ -1,0 +1,8 @@
+{
+  "_note": "CONFIRMED against FitBark's official Postman docs (POST /api/v2/time_breakdown).",
+  "activity_level": {
+    "min_active": 63,
+    "min_play": 21,
+    "min_rest": 540
+  }
+}

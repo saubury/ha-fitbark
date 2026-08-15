@@ -1,0 +1,6 @@
+{
+  "_note": "CONFIRMED against FitBark's official Postman docs (GET /api/v2/daily_goal/{dog_slug}).",
+  "daily_goals": [
+    { "goal": 500, "date": "2024-01-01" }
+  ]
+}

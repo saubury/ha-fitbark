@@ -1,0 +1,11 @@
+{
+  "_note": "CONFIRMED shape from FitBark's official Postman docs (GET /api/v2/dog/{dog_slug}) EXCEPT battery_level, which is NOT part of the documented schema -- included here only to exercise the best-effort probe in async_get_dog_info.",
+  "dog": {
+    "slug": "fido-1234",
+    "name": "Fido",
+    "bluetooth_id": "0319e2809c310c44",
+    "activity_value": 7921,
+    "breed1": { "id": 16, "name": "Labrador" },
+    "battery_level": 76
+  }
+}
