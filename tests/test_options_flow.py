@@ -1,4 +1,4 @@
-"""Tests for the FitBark options flow (polling interval)."""
+"""Tests for the FitBark options flow (polling intervals)."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ from datetime import timedelta
 
 from homeassistant.core import HomeAssistant
 
-from custom_components.fitbark.const import CONF_SCAN_INTERVAL
+from custom_components.fitbark.const import CONF_SCAN_INTERVAL, CONF_STATISTICS_SCAN_INTERVAL
 
 
 async def test_options_flow_updates_coordinator_interval(
@@ -17,23 +17,25 @@ async def test_options_flow_updates_coordinator_interval(
     mock_config_entry,
     mock_fitbark_api,
 ) -> None:
-    """Changing the polling interval via options reloads the entry with it."""
+    """Changing the sensor polling interval via options reloads the entry with it."""
     mock_config_entry.add_to_hass(hass)
     assert await hass.config_entries.async_setup(mock_config_entry.entry_id)
     await hass.async_block_till_done()
 
     # Default interval before any options are set.
-    assert mock_config_entry.runtime_data.update_interval == timedelta(minutes=20)
+    assert mock_config_entry.runtime_data.update_interval == timedelta(minutes=60)
 
     result = await hass.config_entries.options.async_init(mock_config_entry.entry_id)
     assert result["type"] == "form"
     assert result["step_id"] == "init"
 
     result = await hass.config_entries.options.async_configure(
-        result["flow_id"], user_input={CONF_SCAN_INTERVAL: 45}
+        result["flow_id"],
+        user_input={CONF_SCAN_INTERVAL: 45, CONF_STATISTICS_SCAN_INTERVAL: 2},
     )
     assert result["type"] == "create_entry"
     await hass.async_block_till_done()
 
     assert mock_config_entry.options[CONF_SCAN_INTERVAL] == 45
+    assert mock_config_entry.options[CONF_STATISTICS_SCAN_INTERVAL] == 2
     assert mock_config_entry.runtime_data.update_interval == timedelta(minutes=45)

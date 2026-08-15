@@ -14,14 +14,23 @@ from homeassistant.config_entries import (
 )
 from homeassistant.core import callback
 from homeassistant.helpers import aiohttp_client, config_entry_oauth2_flow
+from homeassistant.helpers.selector import (
+    NumberSelector,
+    NumberSelectorConfig,
+    NumberSelectorMode,
+)
 
 from .const import (
     API_ROOT,
     CONF_SCAN_INTERVAL,
+    CONF_STATISTICS_SCAN_INTERVAL,
     DEFAULT_SCAN_INTERVAL_MINUTES,
+    DEFAULT_STATISTICS_SCAN_INTERVAL_HOURS,
     DOMAIN,
     MAX_SCAN_INTERVAL_MINUTES,
+    MAX_STATISTICS_SCAN_INTERVAL_HOURS,
     MIN_SCAN_INTERVAL_MINUTES,
+    MIN_STATISTICS_SCAN_INTERVAL_HOURS,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -98,7 +107,7 @@ class FitBarkOAuth2FlowHandler(
 
 
 class FitBarkOptionsFlowHandler(OptionsFlowWithReload):
-    """Handle FitBark options -- currently just the sensor polling interval."""
+    """Handle FitBark options -- the sensor and statistics polling intervals."""
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
@@ -111,9 +120,26 @@ class FitBarkOptionsFlowHandler(OptionsFlowWithReload):
             {
                 vol.Optional(
                     CONF_SCAN_INTERVAL, default=DEFAULT_SCAN_INTERVAL_MINUTES
-                ): vol.All(
-                    vol.Coerce(int),
-                    vol.Range(min=MIN_SCAN_INTERVAL_MINUTES, max=MAX_SCAN_INTERVAL_MINUTES),
+                ): NumberSelector(
+                    NumberSelectorConfig(
+                        min=MIN_SCAN_INTERVAL_MINUTES,
+                        max=MAX_SCAN_INTERVAL_MINUTES,
+                        step=1,
+                        unit_of_measurement="min",
+                        mode=NumberSelectorMode.BOX,
+                    )
+                ),
+                vol.Optional(
+                    CONF_STATISTICS_SCAN_INTERVAL,
+                    default=DEFAULT_STATISTICS_SCAN_INTERVAL_HOURS,
+                ): NumberSelector(
+                    NumberSelectorConfig(
+                        min=MIN_STATISTICS_SCAN_INTERVAL_HOURS,
+                        max=MAX_STATISTICS_SCAN_INTERVAL_HOURS,
+                        step=1,
+                        unit_of_measurement="h",
+                        mode=NumberSelectorMode.BOX,
+                    )
                 ),
             }
         )

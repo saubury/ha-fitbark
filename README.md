@@ -22,13 +22,15 @@ FitBark doesn't publish a rate limit, so this integration is deliberately conser
 and every schedule is easy to see and adjust:
 
 - **Sensor entities**: one `GET /api/v2/dog_relations` call per poll, covering every dog
-  on the account in a single request. Default interval is **20 minutes** (~72 calls/day),
-  configurable from **Settings → Devices & Services → FitBark → Configure** down to 5
-  minutes or up to 2 hours. FitBark's collar sync isn't continuous, so polling much
-  faster than the default mostly just re-fetches unchanged values.
+  on the account in a single request. Default interval is **60 minutes** (~24 calls/day),
+  configurable from **Settings → Devices & Services → FitBark → Configure** anywhere from
+  5 minutes to 12 hours. FitBark's collar sync isn't continuous, so polling much faster
+  than the default mostly just re-fetches unchanged values.
 - **Hourly statistics** (see below): one `POST /api/v2/activity_series` call per dog per
-  hour once backfilled (~24 calls/day/dog), plus a one-time-ever 42-day backfill (up to 6
-  calls per dog) the first time a dog's statistics are created.
+  cycle once backfilled, default every **1 hour** (~24 calls/day/dog), also configurable
+  in the same options dialog (1-24 hours -- going below 1 hour has no benefit, since
+  FitBark's finest tracked resolution is hourly). Separately, a one-time-ever 42-day
+  backfill (up to 6 calls per dog) happens the first time a dog's statistics are created.
 
 ## How it works
 

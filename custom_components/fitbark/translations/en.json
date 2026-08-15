@@ -24,9 +24,14 @@
     "step": {
       "init": {
         "title": "FitBark options",
-        "description": "How often to poll FitBark for updated sensor data (activity, goal, minutes, battery). FitBark's collar sync isn't continuous, so shorter intervals mostly just re-fetch unchanged values.",
+        "description": "FitBark's collar sync isn't continuous, so shorter intervals mostly just re-fetch unchanged values.",
         "data": {
-          "scan_interval": "Polling interval (minutes)"
+          "scan_interval": "Sensor polling interval",
+          "statistics_scan_interval": "Statistics import interval"
+        },
+        "data_description": {
+          "scan_interval": "How often to refresh activity/goal/minutes/battery sensors.",
+          "statistics_scan_interval": "How often to import hourly activity history into long-term statistics. FitBark's finest tracked resolution is hourly, so below 1 hour has no benefit."
         }
       }
     }

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import timedelta
+
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
@@ -9,7 +11,11 @@ from homeassistant.helpers import aiohttp_client, config_entry_oauth2_flow
 from homeassistant.helpers.event import async_track_time_interval
 
 from .api import FitBarkApiClient
-from .const import DOMAIN, STATISTICS_SCAN_INTERVAL
+from .const import (
+    CONF_STATISTICS_SCAN_INTERVAL,
+    DEFAULT_STATISTICS_SCAN_INTERVAL_HOURS,
+    DOMAIN,
+)
 from .coordinator import FitBarkDataUpdateCoordinator
 from .statistics import async_import_dog_activity_statistics
 
@@ -43,9 +49,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: FitBarkConfigEntry) -> b
     # async_import_dog_activity_statistics's own error handling) rather than
     # racing setup.
     await _async_import_statistics()
+    statistics_hours = entry.options.get(
+        CONF_STATISTICS_SCAN_INTERVAL, DEFAULT_STATISTICS_SCAN_INTERVAL_HOURS
+    )
     entry.async_on_unload(
         async_track_time_interval(
-            hass, _async_import_statistics, STATISTICS_SCAN_INTERVAL
+            hass, _async_import_statistics, timedelta(hours=statistics_hours)
         )
     )
 
