@@ -11,7 +11,7 @@ from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .api import FitBarkApiClient, FitBarkApiError, FitBarkAuthError, FitBarkDogSnapshot
-from .const import CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL_MINUTES, DOMAIN
+from .const import CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL_HOURS, DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -28,13 +28,13 @@ class FitBarkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, FitBarkDogSna
     def __init__(
         self, hass: HomeAssistant, entry: ConfigEntry, api: FitBarkApiClient
     ) -> None:
-        minutes = entry.options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL_MINUTES)
+        hours = entry.options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL_HOURS)
         super().__init__(
             hass,
             _LOGGER,
             name=DOMAIN,
             config_entry=entry,
-            update_interval=timedelta(minutes=minutes),
+            update_interval=timedelta(hours=hours),
         )
         self.api = api
 

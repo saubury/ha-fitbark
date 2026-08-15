@@ -17,25 +17,30 @@ async def test_options_flow_updates_coordinator_interval(
     mock_config_entry,
     mock_fitbark_api,
 ) -> None:
-    """Changing the sensor polling interval via options reloads the entry with it."""
+    """The two-step options flow updates the coordinator's polling interval."""
     mock_config_entry.add_to_hass(hass)
     assert await hass.config_entries.async_setup(mock_config_entry.entry_id)
     await hass.async_block_till_done()
 
     # Default interval before any options are set.
-    assert mock_config_entry.runtime_data.update_interval == timedelta(minutes=60)
+    assert mock_config_entry.runtime_data.update_interval == timedelta(hours=1)
 
     result = await hass.config_entries.options.async_init(mock_config_entry.entry_id)
     assert result["type"] == "form"
     assert result["step_id"] == "init"
 
     result = await hass.config_entries.options.async_configure(
-        result["flow_id"],
-        user_input={CONF_SCAN_INTERVAL: 45, CONF_STATISTICS_SCAN_INTERVAL: 2},
+        result["flow_id"], user_input={CONF_SCAN_INTERVAL: 4}
+    )
+    assert result["type"] == "form"
+    assert result["step_id"] == "statistics"
+
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], user_input={CONF_STATISTICS_SCAN_INTERVAL: 6}
     )
     assert result["type"] == "create_entry"
     await hass.async_block_till_done()
 
-    assert mock_config_entry.options[CONF_SCAN_INTERVAL] == 45
-    assert mock_config_entry.options[CONF_STATISTICS_SCAN_INTERVAL] == 2
-    assert mock_config_entry.runtime_data.update_interval == timedelta(minutes=45)
+    assert mock_config_entry.options[CONF_SCAN_INTERVAL] == 4
+    assert mock_config_entry.options[CONF_STATISTICS_SCAN_INTERVAL] == 6
+    assert mock_config_entry.runtime_data.update_interval == timedelta(hours=4)
