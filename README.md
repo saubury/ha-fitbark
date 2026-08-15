@@ -135,14 +135,26 @@ option name isn't confirmed here.
 
 ## Installation
 
-1. Add this repository to HACS as a custom repository (category: Integration).
-2. Install "FitBark" via HACS, then restart Home Assistant.
-3. Go to **Settings → Devices & Services → Application Credentials → Add**, choose
-   FitBark, and enter your `client_id` / `client_secret` from the prerequisite step.
-4. Go to **Settings → Devices & Services → Add Integration**, search for FitBark, and
-   complete the browser-based FitBark login/authorize step.
+Confirmed working end-to-end against a real HAOS instance:
 
-Each dog on your account appears as a separate device with the sensors listed above.
+1. **Add the custom repository to HACS**
+   - Open **HACS** in the sidebar → **⋮** (top right) → **Custom repositories**
+   - Repository: `https://github.com/saubury/ha-fitbark`, category **Integration**, Add
+2. **Install FitBark**
+   - In HACS, search **FitBark** → Download, then restart Home Assistant when prompted
+3. **Add Application Credentials**
+   - **Settings → Devices & Services → Application Credentials → Add**
+   - Pick **FitBark**, enter the `client_id`/`client_secret` from the prerequisite step
+4. **Add the integration**
+   - **Settings → Devices & Services → Add Integration** → search **FitBark**
+   - Complete the browser OAuth step (uses the `my.home-assistant.io` redirect registered
+     in the prerequisite step, so this works regardless of your instance's network setup)
+5. **Verify**
+   - Each dog appears as its own device with the 6 sensors listed above
+   - **Developer Tools → Statistics** starts backfilling hourly activity/play/active/rest
+     data (the initial 42-day backfill takes a few seconds)
+   - On HA **2026.3+**, the integration shows its own icon instead of "icon not available"
+   - Optionally, **Configure** the integration to adjust the two polling intervals
 
 ## Development
 
