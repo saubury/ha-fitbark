@@ -61,6 +61,7 @@ class FitBarkDog:
     slug: str
     name: str
     breed: str | None = None
+    tzname: str | None = None
 
 
 @dataclass
@@ -92,7 +93,12 @@ def _parse_dog_snapshot(raw: dict) -> FitBarkDogSnapshot:
     if isinstance(raw.get("breed1"), dict):
         breed = raw["breed1"].get("name")
 
-    dog = FitBarkDog(slug=raw["slug"], name=raw.get("name", raw["slug"]), breed=breed)
+    dog = FitBarkDog(
+        slug=raw["slug"],
+        name=raw.get("name", raw["slug"]),
+        breed=breed,
+        tzname=raw.get("tzname"),
+    )
 
     activity_points = _as_float(raw.get("activity_value"))
     goal = _as_float(raw.get("daily_goal"))
@@ -237,3 +243,28 @@ class FitBarkApiClient:
             json={"dog": {"slug": dog_slug, "from": date_from, "to": date_to}},
         )
         return data.get("activity_level", {})
+
+    async def async_get_activity_series(
+        self, dog_slug: str, date_from: str, date_to: str, resolution: str
+    ) -> list[dict]:
+        """POST /api/v2/activity_series - historical series data.
+
+        FitBark caps the range per call: 42 days at DAILY resolution, 7 days
+        at HOURLY. Each record's `date` is "YYYY-MM-DD" for DAILY or
+        "YYYY-MM-DD HH:MM:SS" for HOURLY, in the dog's local time (see
+        FitBarkDog.tzname) -- callers requesting a wider range must chunk
+        into multiple calls themselves (see statistics.py).
+        """
+        data = await self._request(
+            "POST",
+            f"{API_ROOT}/api/v2/activity_series",
+            json={
+                "activity_series": {
+                    "slug": dog_slug,
+                    "from": date_from,
+                    "to": date_to,
+                    "resolution": resolution,
+                }
+            },
+        )
+        return data.get("activity_series", {}).get("records", [])

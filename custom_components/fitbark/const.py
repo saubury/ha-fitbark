@@ -15,5 +15,11 @@ API_ROOT = "https://app.fitbark.com"
 # new data anyway. Still conservative relative to undocumented rate limits.
 DEFAULT_SCAN_INTERVAL = timedelta(minutes=5)
 
+# How often to import hourly activity_series data into HA's long-term
+# statistics (see statistics.py). Hourly data only changes once an hour at
+# most, so this runs on its own, slower schedule decoupled from the main
+# entity-polling coordinator above.
+STATISTICS_SCAN_INTERVAL = timedelta(hours=1)
+
 ATTRIBUTION = "Data provided by FitBark"
 MANUFACTURER = "FitBark"

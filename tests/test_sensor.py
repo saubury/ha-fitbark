@@ -8,7 +8,12 @@ from custom_components.fitbark.sensor import SENSOR_DESCRIPTIONS
 
 
 async def test_sensor_entities_created_per_dog(
-    hass: HomeAssistant, setup_credentials, mock_config_entry, mock_fitbark_api
+    recorder_mock,
+    enable_custom_integrations,
+    hass: HomeAssistant,
+    setup_credentials,
+    mock_config_entry,
+    mock_fitbark_api,
 ) -> None:
     """One entity per SENSOR_DESCRIPTIONS entry is created for each dog."""
     mock_config_entry.add_to_hass(hass)
@@ -22,7 +27,12 @@ async def test_sensor_entities_created_per_dog(
 
 
 async def test_battery_sensor_state_matches_fixture(
-    hass: HomeAssistant, setup_credentials, mock_config_entry, mock_fitbark_api
+    recorder_mock,
+    enable_custom_integrations,
+    hass: HomeAssistant,
+    setup_credentials,
+    mock_config_entry,
+    mock_fitbark_api,
 ) -> None:
     """The battery sensor reports the value from the mocked API response."""
     mock_config_entry.add_to_hass(hass)

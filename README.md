@@ -30,6 +30,19 @@ The daily-goal percentage shown by `activity_goal_percent` is computed client-si
 (`activity_value / daily_goal * 100`), since FitBark's own response doesn't include a
 percentage directly.
 
+### Hourly activity history (long-term statistics)
+
+In addition to the current-snapshot sensors above, each dog's hourly activity is
+imported into Home Assistant's long-term statistics (the same mechanism used by energy
+and utility integrations), visible under **Developer Tools → Statistics** or in a
+Statistics Graph card, as `FitBark: <dog name> Activity`. This uses
+`POST /api/v2/activity_series` at `HOURLY` resolution, which FitBark caps to a 7-day
+range per call, so a wide backfill (42 days on first setup) is split into consecutive
+7-day windows automatically. After the initial backfill, it refreshes hourly on its own
+schedule, independent of the 5-minute sensor polling. This isn't a regular entity --
+external statistics aren't tied to one -- so it won't appear in Developer Tools →
+States.
+
 ## Prerequisites (manual, one-time)
 
 1. Register a developer app at the [FitBark developer portal](https://www.fitbark.com/dev/)

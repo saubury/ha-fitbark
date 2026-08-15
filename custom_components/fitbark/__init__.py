@@ -6,10 +6,12 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import aiohttp_client, config_entry_oauth2_flow
+from homeassistant.helpers.event import async_track_time_interval
 
 from .api import FitBarkApiClient
-from .const import DOMAIN
+from .const import DOMAIN, STATISTICS_SCAN_INTERVAL
 from .coordinator import FitBarkDataUpdateCoordinator
+from .statistics import async_import_dog_activity_statistics
 
 PLATFORMS: list[Platform] = [Platform.SENSOR]
 
@@ -31,6 +33,22 @@ async def async_setup_entry(hass: HomeAssistant, entry: FitBarkConfigEntry) -> b
 
     entry.runtime_data = coordinator
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+
+    async def _async_import_statistics(_now=None) -> None:
+        for snapshot in coordinator.data.values():
+            await async_import_dog_activity_statistics(hass, api, snapshot.dog)
+
+    # Bounded, one-shot backfill -- awaited directly rather than scheduled as
+    # a background task, since it must finish (or safely no-op on error, per
+    # async_import_dog_activity_statistics's own error handling) rather than
+    # racing setup.
+    await _async_import_statistics()
+    entry.async_on_unload(
+        async_track_time_interval(
+            hass, _async_import_statistics, STATISTICS_SCAN_INTERVAL
+        )
+    )
+
     return True
 
 

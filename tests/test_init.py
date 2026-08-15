@@ -11,7 +11,12 @@ from .const import DOG_SLUG
 
 
 async def test_setup_and_unload(
-    hass: HomeAssistant, setup_credentials, mock_config_entry, mock_fitbark_api
+    recorder_mock,
+    enable_custom_integrations,
+    hass: HomeAssistant,
+    setup_credentials,
+    mock_config_entry,
+    mock_fitbark_api,
 ) -> None:
     """A config entry with reachable endpoints loads and unloads cleanly."""
     mock_config_entry.add_to_hass(hass)
@@ -29,7 +34,12 @@ async def test_setup_and_unload(
 
 
 async def test_setup_entry_not_ready_on_api_error(
-    hass: HomeAssistant, setup_credentials, mock_config_entry, aioclient_mock
+    recorder_mock,
+    enable_custom_integrations,
+    hass: HomeAssistant,
+    setup_credentials,
+    mock_config_entry,
+    aioclient_mock,
 ) -> None:
     """A network failure on first refresh leaves the entry in SETUP_RETRY."""
     aioclient_mock.get(f"{API_ROOT}/api/v2/dog_relations", status=500)

@@ -13,6 +13,8 @@ from .const import ACCESS_TOKEN, CLIENT_ID
 
 
 async def test_full_flow(
+    recorder_mock,
+    enable_custom_integrations,
     hass: HomeAssistant,
     hass_client_no_auth,
     aioclient_mock,
@@ -60,6 +62,8 @@ async def test_full_flow(
 
 
 async def test_duplicate_account_aborts(
+    recorder_mock,
+    enable_custom_integrations,
     hass: HomeAssistant,
     hass_client_no_auth,
     aioclient_mock,

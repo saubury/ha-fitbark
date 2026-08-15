@@ -3,10 +3,10 @@
   "name": "FitBark",
   "codeowners": ["@saubury"],
   "config_flow": true,
-  "dependencies": ["application_credentials"],
+  "dependencies": ["application_credentials", "recorder"],
   "documentation": "https://github.com/saubury/ha-fitbark",
   "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/saubury/ha-fitbark/issues",
   "requirements": [],
-  "version": "0.1.0"
+  "version": "0.2.0"
 }

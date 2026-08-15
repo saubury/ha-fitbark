@@ -32,12 +32,6 @@ def load_fixture(name: str) -> dict:
     return json.loads((FIXTURES_DIR / name).read_text())
 
 
-@pytest.fixture(autouse=True)
-def auto_enable_custom_integrations(enable_custom_integrations):
-    """Enable custom integrations for every test."""
-    yield
-
-
 @pytest.fixture
 async def setup_credentials(hass: HomeAssistant) -> None:
     """Register fake application credentials for the FitBark domain."""
