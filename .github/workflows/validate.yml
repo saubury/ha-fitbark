@@ -22,3 +22,7 @@ jobs:
       - uses: hacs/action@main
         with:
           category: integration
+          # This is a personal custom-repository integration, not submitted
+          # for HACS's default store, so brand assets (which would require
+          # a home-assistant/brands submission) aren't applicable.
+          ignore: "brands"
