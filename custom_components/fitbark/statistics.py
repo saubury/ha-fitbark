@@ -172,7 +172,11 @@ async def async_import_dog_activity_statistics(
         # window, not just "since whichever metric already has data".
         start = now - timedelta(days=_INITIAL_BACKFILL_DAYS)
     else:
-        start = dt_util.utc_from_timestamp(min(resume_timestamps))
+        # get_last_statistics returns a bare UTC epoch timestamp; convert to
+        # the dog's local tz (matching `now` and the initial-backfill branch
+        # above) so _iter_hourly_windows computes dog-local calendar dates
+        # consistently on every call, not just the first.
+        start = dt_util.utc_from_timestamp(min(resume_timestamps)).astimezone(tz)
 
     try:
         records = await _async_fetch_hourly_records(api, dog.slug, start, now, tz)
