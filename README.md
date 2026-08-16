@@ -5,6 +5,8 @@ dog activity tracker data as Home Assistant sensors.
 
 **Not affiliated with or endorsed by FitBark.**
 
+![](./docs/overview.png)
+
 ## What this does (and doesn't)
 
 Per dog, this integration exposes:
@@ -16,22 +18,34 @@ Per dog, this integration exposes:
 It does **not** expose location, sleep score, or FitBark's computed health index --
 these are not available through the public developer API.
 
-## API call volume
+## Prerequisites (manual, one-time)
 
-FitBark doesn't publish a rate limit, so this integration is deliberately conservative
-and every schedule is easy to see and adjust:
+Register a developer app at the [FitBark developer portal](https://www.fitbark.com/dev/)
+   to get a `client_id` and `client_secret`.
 
-- **Sensor entities**: one `GET /api/v2/dog_relations` call per poll, covering every dog
-  on the account in a single request. Default interval is **1 hour** (~24 calls/day),
-  configurable from **Settings → Devices & Services → FitBark → Configure** anywhere from
-  15 minutes to 12 hours. FitBark's collar sync isn't continuous, so polling much faster
-  than the default mostly just re-fetches unchanged values.
-- **Hourly statistics** (see below): one `POST /api/v2/activity_series` call per dog per
-  cycle once backfilled, default every **1 hour** (~24 calls/day/dog), also configurable
-  in the same Configure dialog, from 1-24 hours -- going below 1 hour has no benefit,
-  since FitBark's finest tracked resolution is hourly. Separately, a
-  one-time-ever 42-day backfill (up to 6 calls per dog) happens the first time a dog's
-  statistics are created.
+
+## Installation
+
+To install in your Home Assistant instance you'll need [Home Assistant Community Store (HACS)](https://www.hacs.xyz/) installed
+
+1. **Add the custom repository to HACS**
+   - Open **HACS** in the sidebar → **⋮** (top right) → **Custom repositories**
+   - Repository: `https://github.com/saubury/ha-fitbark`, category **Integration**, Add
+2. **Install FitBark**
+   - In HACS, search **FitBark** → Download, then restart Home Assistant when prompted
+3. **Add Application Credentials**
+   - **Settings → Devices & Services → Add**
+   - Pick **FitBark**, enter the `client_id`/`client_secret` from the prerequisite step
+4. **Add the integration**
+   - **Settings → Devices & Services → Add Integration** → search **FitBark**
+   - Complete the browser OAuth step (log into your FitBark account)
+5. **Verify**
+   - Each dog appears as its own device with the 6 sensors 
+   - **Developer Tools → Statistics** starts backfilling hourly activity/play/active/rest
+     data (the initial 42-day backfill takes a few seconds)
+   - Optionally, **Configure** the integration to adjust the two polling intervals
+
+
 
 ## How it works
 
@@ -67,101 +81,46 @@ a 7-day range per call, so a wide backfill (42 days on first setup) is split int
 consecutive 7-day windows automatically -- one shared fetch per dog covers all four
 metrics, since each hourly record already carries all of them. After the initial
 backfill, it refreshes hourly on its own schedule, independent of the 5-minute sensor
-polling. These aren't regular entities -- external statistics aren't tied to one -- so
-none of this appears in Developer Tools → States. The Developer Tools → Statistics page
-is a management table, not a chart, so add a **Statistics Graph** card to a dashboard to
-actually see the history:
-
-```yaml
-type: statistics-graph
-title: <Dog name> Activity
-stat_types:
-  - change
-chart_type: bar
-entities:
-  - fitbark:<dog_slug_with_underscores>_activity
-```
-
-Use `change` (not `sum`) as the stat type -- `sum` is the raw cumulative running total
-(an ever-climbing odometer, matching how HA stores the data internally), while `change`
-shows the actual per-period amount as bars, which reads far more naturally for activity
-data. Find your dog's exact statistic IDs in Developer Tools → Statistics.
+polling. 
 
 To see the play/active/rest **proportion of each hour** (each hour's three minute
 values sum to 60), add all three minute statistics to one card:
 
+![hourly](./docs/hourly.png)
+
 ```yaml
 type: statistics-graph
-title: <Dog name> Hourly Breakdown
+title: Fitbark Hourly Breakdown
+days_to_show: 1
+period: hour
+chart_type: bar-stack
 stat_types:
   - change
-chart_type: bar
 entities:
   - fitbark:<dog_slug_with_underscores>_minutes_play
   - fitbark:<dog_slug_with_underscores>_minutes_active
   - fitbark:<dog_slug_with_underscores>_minutes_rest
 ```
 
-If the three series render as grouped rather than stacked bars, use the card's visual
-editor (its "Stack" toggle) rather than a hand-written YAML key -- the exact stacking
-option name isn't confirmed here.
 
-## Prerequisites (manual, one-time)
 
-1. Register a developer app at the [FitBark developer portal](https://www.fitbark.com/dev/)
-   to get a `client_id` and `client_secret`.
+## API call volume
 
-That's it -- registering `https://my.home-assistant.io/redirect/oauth` as your app's
-OAuth redirect URI (required by FitBark before it will accept an authorize request; a
-fresh app only has FitBark's own default registered, not this one) happens
-**automatically**, the first time you go through the "Add Integration" authorize step.
-The integration fetches an app-level token and merges this URI into whatever's already
-registered (never replacing an existing entry, in case you reuse the same FitBark app
-elsewhere) before generating the authorize URL.
+FitBark doesn't publish a rate limit, so this integration is deliberately conservative
+and every schedule is easy to see and adjust:
 
-If that automatic step fails for some reason (logged as a warning, never blocks the
-flow -- you'll just see FitBark reject the authorize request with a redirect_uri
-mismatch), register it manually instead:
+- **Sensor entities**: one `GET /api/v2/dog_relations` call per poll, covering every dog
+  on the account in a single request. Default interval is **1 hour** (~24 calls/day),
+  configurable from **Settings → Devices & Services → FitBark → Configure** anywhere from
+  15 minutes to 12 hours. FitBark's collar sync isn't continuous, so polling much faster
+  than the default mostly just re-fetches unchanged values.
+- **Hourly statistics** (see below): one `POST /api/v2/activity_series` call per dog per
+  cycle once backfilled, default every **1 hour** (~24 calls/day/dog), also configurable
+  in the same Configure dialog, from 1-24 hours -- going below 1 hour has no benefit,
+  since FitBark's finest tracked resolution is hourly. Separately, a
+  one-time-ever 42-day backfill (up to 6 calls per dog) happens the first time a dog's
+  statistics are created.
 
-```bash
-TOKEN=$(curl -s -X POST -H "Content-Type: application/json" -d '{
-  "grant_type": "client_credentials",
-  "client_id": "YOUR_CLIENT_ID",
-  "client_secret": "YOUR_CLIENT_SECRET",
-  "scope": "fitbark_open_api_2745H78RVS"
-}' "https://app.fitbark.com/oauth/token" | jq -r .access_token)
-
-curl -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d '{
-  "redirect_uri": "https://my.home-assistant.io/redirect/oauth"
-}' "https://app.fitbark.com/api/v2/redirect_urls"
-```
-
-Note this **replaces** any existing registered redirect URIs (they're one string,
-`\r`-separated) -- if you already use this app for something else with its own
-redirect URI, `GET` the current value first and include it in the new string.
-
-## Installation
-
-Confirmed working end-to-end against a real HAOS instance:
-
-1. **Add the custom repository to HACS**
-   - Open **HACS** in the sidebar → **⋮** (top right) → **Custom repositories**
-   - Repository: `https://github.com/saubury/ha-fitbark`, category **Integration**, Add
-2. **Install FitBark**
-   - In HACS, search **FitBark** → Download, then restart Home Assistant when prompted
-3. **Add Application Credentials**
-   - **Settings → Devices & Services → Application Credentials → Add**
-   - Pick **FitBark**, enter the `client_id`/`client_secret` from the prerequisite step
-4. **Add the integration**
-   - **Settings → Devices & Services → Add Integration** → search **FitBark**
-   - Complete the browser OAuth step (uses the `my.home-assistant.io` redirect registered
-     in the prerequisite step, so this works regardless of your instance's network setup)
-5. **Verify**
-   - Each dog appears as its own device with the 6 sensors listed above
-   - **Developer Tools → Statistics** starts backfilling hourly activity/play/active/rest
-     data (the initial 42-day backfill takes a few seconds)
-   - On HA **2026.3+**, the integration shows its own icon instead of "icon not available"
-   - Optionally, **Configure** the integration to adjust the two polling intervals
 
 ## Development
 
