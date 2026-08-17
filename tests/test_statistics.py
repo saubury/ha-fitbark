@@ -137,6 +137,100 @@ async def test_second_run_only_adds_new_hours(
     assert last[statistic_id][0]["sum"] == pytest.approx(70.0)
 
 
+async def test_current_hour_in_progress_is_not_imported(
+    recorder_mock, hass: HomeAssistant, aioclient_mock
+) -> None:
+    """The hour still in progress at fetch time is dropped rather than
+    imported as a partial value -- regression test for the "hours show less
+    than 60 minutes" bug caused by writing a still-filling-up hour's data as
+    if it were final."""
+    dog = FitBarkDog(slug=DOG_SLUG, name="Fido", tzname="UTC")
+    current_hour_start = dt_util.utcnow().replace(minute=0, second=0, microsecond=0)
+    aioclient_mock.post(
+        f"{API_ROOT}/api/v2/activity_series",
+        json={
+            "activity_series": {
+                "records": [
+                    {
+                        "date": current_hour_start.strftime("%Y-%m-%d %H:%M:%S"),
+                        "activity_value": 5,
+                    }
+                ]
+            }
+        },
+    )
+
+    await async_import_dog_activity_statistics(hass, _build_client(hass), dog)
+    await hass.async_block_till_done()
+    await async_recorder_block_till_done(hass)
+
+    statistic_id = statistic_id_for_dog(DOG_SLUG)
+    last = await get_instance(hass).async_add_executor_job(
+        get_last_statistics, hass, 1, statistic_id, False, {"sum", "state"}
+    )
+    assert last == {}
+
+
+async def test_trailing_hour_is_corrected_once_finalized(
+    recorder_mock, hass: HomeAssistant, aioclient_mock
+) -> None:
+    """An hour imported with a partial value (e.g. because it was still the
+    in-progress hour on an earlier run, or FitBark hadn't finalized it yet)
+    gets overwritten with the correct total on a later run -- regression
+    test for the resume watermark treating any already-imported hour as
+    final forever, even a recent one that turns out to have been partial."""
+    dog = FitBarkDog(slug=DOG_SLUG, name="Fido", tzname="UTC")
+    statistic_id = statistic_id_for_dog(DOG_SLUG)
+
+    baseline_hour = (dt_util.utcnow() - timedelta(hours=3)).replace(
+        minute=0, second=0, microsecond=0
+    )
+    stale_hour = baseline_hour + timedelta(hours=1)
+
+    async_add_external_statistics(
+        hass,
+        StatisticMetaData(
+            mean_type=StatisticMeanType.NONE,
+            has_sum=True,
+            name="Fido Activity",
+            source=DOMAIN,
+            statistic_id=statistic_id,
+            unit_class=None,
+            unit_of_measurement="BarkPoints",
+        ),
+        [
+            StatisticData(start=baseline_hour, state=100.0, sum=100.0),
+            StatisticData(start=stale_hour, state=13.0, sum=113.0),
+        ],
+    )
+    await hass.async_block_till_done()
+    await async_recorder_block_till_done(hass)
+
+    aioclient_mock.post(
+        f"{API_ROOT}/api/v2/activity_series",
+        json={
+            "activity_series": {
+                "records": [
+                    {
+                        "date": stale_hour.strftime("%Y-%m-%d %H:%M:%S"),
+                        "activity_value": 60,
+                    }
+                ]
+            }
+        },
+    )
+
+    await async_import_dog_activity_statistics(hass, _build_client(hass), dog)
+    await hass.async_block_till_done()
+    await async_recorder_block_till_done(hass)
+
+    last = await get_instance(hass).async_add_executor_job(
+        get_last_statistics, hass, 1, statistic_id, False, {"sum", "state"}
+    )
+    assert last[statistic_id][0]["state"] == pytest.approx(60.0)
+    assert last[statistic_id][0]["sum"] == pytest.approx(160.0)
+
+
 async def test_minute_breakdown_metrics_are_imported(
     recorder_mock, hass: HomeAssistant, aioclient_mock
 ) -> None:
@@ -188,8 +282,12 @@ async def test_new_metric_backfills_fully_despite_sibling_having_history(
     activity_statistic_id = statistic_id_for_dog(DOG_SLUG, "activity")
 
     # Seed only the "activity" statistic with a single recent point, as if
-    # it were imported hours ago while "minutes_play" never has been.
-    recent_start = dt_util.utcnow().replace(minute=0, second=0, microsecond=0)
+    # it were imported hours ago while "minutes_play" never has been. Offset
+    # from the current hour so it isn't dropped as "still in progress" (see
+    # test_current_hour_in_progress_is_not_imported).
+    recent_start = (dt_util.utcnow() - timedelta(hours=2)).replace(
+        minute=0, second=0, microsecond=0
+    )
     async_add_external_statistics(
         hass,
         StatisticMetaData(

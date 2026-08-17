@@ -50,6 +50,17 @@ _MAX_HOURLY_WINDOW_DAYS = 7
 # How far back to backfill the first time a dog's statistics are created.
 _INITIAL_BACKFILL_DAYS = 42
 
+# How many trailing hours to re-fetch and overwrite on every import, even
+# though they already have a statistic row. Two things can make an already-
+# imported hour wrong: a run firing mid-hour previously wrote a partial value
+# for the hour in progress (see the current_hour_start filter below, which
+# now prevents that going forward but doesn't fix history), and FitBark
+# itself finalizing an hour's totals a little after it ends (collar syncs
+# are periodic, not continuous). async_add_external_statistics upserts by
+# (statistic_id, start), so re-writing an hour that already has a row is
+# safe and idempotent.
+_REIMPORT_HOURS = 3
+
 _RESOLUTION_HOURLY = "HOURLY"
 
 
@@ -156,14 +167,25 @@ async def async_import_dog_activity_statistics(
     resume_points: dict[str, tuple[float | None, float]] = {}
     for metric in _METRICS:
         statistic_id = statistic_id_for_dog(dog.slug, metric.key)
-        last_stat = await get_instance(hass).async_add_executor_job(
-            get_last_statistics, hass, 1, statistic_id, False, {"sum"}
+        last_stats = await get_instance(hass).async_add_executor_job(
+            get_last_statistics,
+            hass,
+            _REIMPORT_HOURS + 1,
+            statistic_id,
+            False,
+            {"sum"},
         )
-        if not last_stat:
+        if not last_stats:
             resume_points[metric.key] = (None, 0.0)
         else:
-            row = last_stat[statistic_id][0]
-            resume_points[metric.key] = (row["start"], float(row.get("sum") or 0.0))
+            # Rows come back newest-first; resume from the oldest one in the
+            # batch so the whole trailing buffer is re-fetched and its sum
+            # recomputed, not just whatever's strictly after the last row.
+            oldest_row = last_stats[statistic_id][-1]
+            resume_points[metric.key] = (
+                oldest_row["start"],
+                float(oldest_row.get("sum") or 0.0),
+            )
 
     resume_timestamps = [ts for ts, _ in resume_points.values()]
     if any(ts is None for ts in resume_timestamps):
@@ -183,6 +205,13 @@ async def async_import_dog_activity_statistics(
     except Exception as err:  # noqa: BLE001 - best-effort: must never block sensor setup
         _LOGGER.warning("Failed to fetch activity_series for %s: %s", dog.slug, err)
         return
+
+    # Drop the hour still in progress -- activity_series returns a partial
+    # value for it (whatever minutes have elapsed so far), and importing
+    # that would get treated as final on the next run's resume logic just
+    # like any other already-imported hour.
+    current_hour_start = now.replace(minute=0, second=0, microsecond=0)
+    records = [r for r in records if r.start < current_hour_start]
 
     if not records:
         _LOGGER.debug("No hourly activity records for %s", dog.slug)
