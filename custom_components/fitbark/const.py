@@ -14,10 +14,11 @@ API_ROOT = "https://app.fitbark.com"
 # which does this automatically.
 MY_HOME_ASSISTANT_REDIRECT = "https://my.home-assistant.io/redirect/oauth"
 
-# A full update is a single GET /api/v2/dog_relations call regardless of dog
-# count (confirmed live -- see api.py), but the underlying data itself only
-# changes as often as the collar syncs (periodic, not continuous) -- polling
-# much faster than that just re-fetches unchanged values. User-configurable
+# A full update is one GET /api/v2/dog_relations call plus one POST
+# /api/v2/activity_totals call per dog (see api.py), but the underlying data
+# itself only changes as often as the collar syncs (periodic, not
+# continuous) -- polling much faster than that just re-fetches unchanged
+# values. User-configurable
 # via the options flow (in hours, matching CONF_STATISTICS_SCAN_INTERVAL
 # below); these are only the fallback default/bounds. Quarter-hour steps are
 # allowed (unlike the statistics interval) since sub-hour polling still has

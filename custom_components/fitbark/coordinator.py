@@ -19,10 +19,13 @@ _LOGGER = logging.getLogger(__name__)
 class FitBarkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, FitBarkDogSnapshot]]):
     """Coordinates fetching FitBark data for every dog on one account.
 
-    A full update is a single GET /api/v2/dog_relations call -- FitBark
-    embeds every dog's current snapshot (activity, goal, minutes, battery)
-    directly in that response, confirmed live -- so there's no per-dog fan
-    out here to isolate failures for.
+    A full update is GET /api/v2/dog_relations (goal, minutes, battery for
+    every dog in one call) plus one POST /api/v2/activity_totals call per dog
+    for today's activity points -- dog_relations' own activity_value field
+    doesn't reflect today's total (see api.py). All of this happens inside
+    FitBarkApiClient.async_get_snapshots, so there's still no per-dog fan out
+    here to isolate failures for -- a failure on any one dog's activity_totals
+    call fails the whole update, same as a dog_relations failure always did.
     """
 
     def __init__(

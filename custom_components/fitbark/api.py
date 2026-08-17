@@ -3,12 +3,16 @@
 Endpoint paths, HTTP methods, and response field names below are taken
 directly from FitBark's official Postman API documentation (v2 public API,
 supplied by the developer as FitBarkAPI.pdf) and confirmed against a live
-account. One notable discovery from live testing: GET /api/v2/dog_relations
-already embeds every field a dashboard needs per dog -- current activity
-points, the goal in effect today, the active/play/rest minute breakdown, and
-(though undocumented) a `battery_level` field -- so a full account update
-needs exactly one HTTP call regardless of dog count. The per-dog endpoints
-(`async_get_dog_info`, `async_get_activity_total`, `async_get_daily_goal`,
+account. GET /api/v2/dog_relations embeds most fields a dashboard needs per
+dog -- the goal in effect today, the active/play/rest minute breakdown, and
+(though undocumented) a `battery_level` field. Its `activity_value` field is
+NOT one of them, despite an earlier version of this client assuming it was
+"today's activity points": confirmed live, it diverges wildly from the
+purpose-built activity_totals(from=today, to=today) call for the same dog on
+the same day (e.g. 2333 vs. 7749) -- it appears to be some other, undocumented
+figure, not a daily total. So a full account update is dog_relations plus one
+activity_totals call per dog (see async_get_snapshots), not a single call.
+The other per-dog endpoints (`async_get_dog_info`, `async_get_daily_goal`,
 `async_get_time_breakdown`) are kept for potential future use (e.g. custom
 date ranges, historical charts) but are not on the coordinator's hot path.
 """
@@ -23,6 +27,7 @@ from typing import Any
 from aiohttp import ClientError, ClientResponseError, ClientSession
 
 from homeassistant.helpers import config_entry_oauth2_flow
+from homeassistant.util import dt as dt_util
 
 from .const import API_ROOT
 
@@ -71,6 +76,7 @@ class FitBarkDogSnapshot:
     dog: FitBarkDog
     activity_points: float | None = None
     activity_goal_percent: float | None = None
+    daily_goal: float | None = None
     minutes_active: float | None = None
     minutes_play: float | None = None
     minutes_rest: float | None = None
@@ -88,7 +94,14 @@ def _as_float(value: Any) -> float | None:
 
 
 def _parse_dog_snapshot(raw: dict) -> FitBarkDogSnapshot:
-    """Build a snapshot directly from one dog_relations `dog` object."""
+    """Build a snapshot directly from one dog_relations `dog` object.
+
+    activity_points/activity_goal_percent are deliberately left unset here --
+    dog_relations' `activity_value` field does not represent today's total
+    (see this module's docstring), so the caller (async_get_snapshots) fills
+    those in from a dedicated activity_totals("today") call instead. daily_goal
+    is carried through so that follow-up call can compute the percentage.
+    """
     breed = None
     if isinstance(raw.get("breed1"), dict):
         breed = raw["breed1"].get("name")
@@ -98,12 +111,6 @@ def _parse_dog_snapshot(raw: dict) -> FitBarkDogSnapshot:
         name=raw.get("name", raw["slug"]),
         breed=breed,
         tzname=raw.get("tzname"),
-    )
-
-    activity_points = _as_float(raw.get("activity_value"))
-    goal = _as_float(raw.get("daily_goal"))
-    goal_percent = (
-        round(activity_points / goal * 100, 1) if activity_points is not None and goal else None
     )
 
     battery = raw.get(_BATTERY_KEY)
@@ -117,8 +124,7 @@ def _parse_dog_snapshot(raw: dict) -> FitBarkDogSnapshot:
 
     return FitBarkDogSnapshot(
         dog=dog,
-        activity_points=activity_points,
-        activity_goal_percent=goal_percent,
+        daily_goal=_as_float(raw.get("daily_goal")),
         minutes_active=_as_float(raw.get("min_active")),
         minutes_play=_as_float(raw.get("min_play")),
         minutes_rest=_as_float(raw.get("min_rest")),
@@ -172,13 +178,15 @@ class FitBarkApiClient:
         return data.get("user", data)
 
     async def async_get_snapshots(self) -> dict[str, FitBarkDogSnapshot]:
-        """Fetch and normalize every owned dog's data in a single API call.
+        """Fetch and normalize every owned dog's current data.
 
-        GET /api/v2/dog_relations returns each related dog's full current
-        snapshot (activity, goal, minute breakdown, battery) inline -- no
-        further per-dog requests are needed for a normal update cycle.
-        Only OWNER relations are kept; "friend"/"follower" dogs are out of
-        scope for v1.
+        GET /api/v2/dog_relations returns each related dog's goal, minute
+        breakdown, and battery inline, but not a usable "today's activity
+        points" figure (see this module's docstring) -- that needs one
+        activity_totals(from=today, to=today) call per dog, fetched
+        sequentially (rate-limit-conservative, consistent with the rest of
+        this integration). Only OWNER relations are kept; "friend"/"follower"
+        dogs are out of scope for v1.
         """
         data = await self._request("GET", f"{API_ROOT}/api/v2/dog_relations")
         snapshots: dict[str, FitBarkDogSnapshot] = {}
@@ -192,13 +200,43 @@ class FitBarkApiClient:
                 _LOGGER.warning("Skipping malformed dog record %r: %s", raw, err)
                 continue
             snapshots[snapshot.dog.slug] = snapshot
+
+        for snapshot in snapshots.values():
+            await self._async_fill_todays_activity(snapshot)
+
         return snapshots
+
+    async def _async_fill_todays_activity(self, snapshot: FitBarkDogSnapshot) -> None:
+        """Fill in activity_points/activity_goal_percent for one dog.
+
+        "Today" is resolved in the dog's own local time (matching
+        statistics.py's handling of dog.tzname), not the HA server's --
+        otherwise a dog several hours off UTC could get yesterday's or
+        tomorrow's total near midnight.
+        """
+        dog = snapshot.dog
+        tz = (
+            (await dt_util.async_get_time_zone(dog.tzname))
+            if dog.tzname
+            else dt_util.DEFAULT_TIME_ZONE
+        )
+        today = dt_util.now(tz).date().isoformat()
+        snapshot.activity_points = await self.async_get_activity_total(
+            dog.slug, today, today
+        )
+        if snapshot.activity_points is not None and snapshot.daily_goal:
+            snapshot.activity_goal_percent = round(
+                snapshot.activity_points / snapshot.daily_goal * 100, 1
+            )
 
     async def async_get_dog_info(self, dog_slug: str) -> FitBarkDogSnapshot:
         """GET /api/v2/dog/{dog_slug} - one dog's full current snapshot.
 
         Not used on the coordinator's normal update path (async_get_snapshots
-        covers every dog in one call) but kept as a standalone building block.
+        covers every dog) but kept as a standalone building block. Like
+        async_get_snapshots, activity_points/activity_goal_percent are left
+        unset here -- callers needing them should follow up with
+        async_get_activity_total.
         """
         data = await self._request("GET", f"{API_ROOT}/api/v2/dog/{dog_slug}")
         return _parse_dog_snapshot(data.get("dog", data))

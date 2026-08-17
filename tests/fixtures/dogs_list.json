@@ -1,5 +1,5 @@
 {
-  "_note": "CONFIRMED live against a real account (GET /api/v2/dog_relations) -- every field a dashboard needs is embedded per dog, including the undocumented battery_level. Only status=OWNER entries are kept by async_get_snapshots.",
+  "_note": "CONFIRMED live against a real account (GET /api/v2/dog_relations) -- goal, minute breakdown, and the undocumented battery_level are embedded per dog. Only status=OWNER entries are kept by async_get_snapshots. activity_value is present (as FitBark returns it) but deliberately ignored by _parse_dog_snapshot -- it does not reflect today's total; see api.py's module docstring.",
   "dog_relations": [
     {
       "id": 1,

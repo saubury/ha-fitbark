@@ -51,11 +51,13 @@ To install in your Home Assistant instance you'll need [Home Assistant Community
 
 Endpoint paths, HTTP methods, and field names are taken from FitBark's official v2
 Postman API documentation and confirmed against a live account. A single
-`GET /api/v2/dog_relations` call returns every owned dog's current snapshot in one
-shot -- activity points, the goal in effect today, the active/play/rest minute
-breakdown, and a `battery_level` field -- so a full update cycle is exactly one HTTP
-request regardless of how many dogs are on the account. This isn't documented by
-FitBark (the official docs show battery nowhere at all), but has been verified live.
+`GET /api/v2/dog_relations` call returns every owned dog's goal, active/play/rest
+minute breakdown, and a `battery_level` field (undocumented by FitBark -- the official
+docs show battery nowhere at all -- but confirmed live) in one shot, regardless of dog
+count. Today's activity points are **not** reliable from that same field, though:
+`dog_relations`' own `activity_value` was confirmed live to diverge wildly from the
+purpose-built `activity_totals` endpoint for the same dog on the same day, so a full
+update is `dog_relations` plus one `POST /api/v2/activity_totals` call per dog.
 
 The daily-goal percentage shown by `activity_goal_percent` is computed client-side
 (`activity_value / daily_goal * 100`), since FitBark's own response doesn't include a
@@ -109,11 +111,13 @@ entities:
 FitBark doesn't publish a rate limit, so this integration is deliberately conservative
 and every schedule is easy to see and adjust:
 
-- **Sensor entities**: one `GET /api/v2/dog_relations` call per poll, covering every dog
-  on the account in a single request. Default interval is **1 hour** (~24 calls/day),
-  configurable from **Settings → Devices & Services → FitBark → Configure** anywhere from
-  15 minutes to 12 hours. FitBark's collar sync isn't continuous, so polling much faster
-  than the default mostly just re-fetches unchanged values.
+- **Sensor entities**: one `GET /api/v2/dog_relations` call per poll (covering every dog
+  on the account) plus one `POST /api/v2/activity_totals` call per dog, since
+  `dog_relations`' own activity figure isn't reliable for today's total (see "How it
+  works" above). Default interval is **1 hour** (~24 calls/day flat, plus ~24 calls/day
+  per dog), configurable from **Settings → Devices & Services → FitBark → Configure**
+  anywhere from 15 minutes to 12 hours. FitBark's collar sync isn't continuous, so
+  polling much faster than the default mostly just re-fetches unchanged values.
 - **Hourly statistics** (see below): one `POST /api/v2/activity_series` call per dog per
   cycle once backfilled, default every **1 hour** (~24 calls/day/dog), also configurable
   in the same Configure dialog, from 1-24 hours -- going below 1 hour has no benefit,

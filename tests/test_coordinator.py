@@ -30,10 +30,14 @@ async def _build_coordinator(hass: HomeAssistant, entry) -> FitBarkDataUpdateCoo
     return FitBarkDataUpdateCoordinator(hass, entry, api)
 
 
-async def test_single_call_returns_all_dogs(
+async def test_snapshot_uses_activity_totals_not_dog_relations_field(
     hass: HomeAssistant, mock_config_entry, aioclient_mock
 ) -> None:
-    """One dog_relations call is enough to populate every owned dog."""
+    """activity_points/activity_goal_percent come from a follow-up
+    activity_totals("today") call, not dog_relations' own activity_value --
+    regression test for that field not actually reflecting today's total
+    (confirmed live: it can diverge wildly, e.g. 2333 vs. 7749 for the same
+    dog on the same day). Only owned dogs get a follow-up call."""
     mock_config_entry.add_to_hass(hass)
     other_slug = "rex-5678"
     aioclient_mock.get(
@@ -60,15 +64,20 @@ async def test_single_call_returns_all_dogs(
             ]
         },
     )
+    aioclient_mock.post(
+        f"{API_ROOT}/api/v2/activity_totals", json={"activity_value": 150}
+    )
 
     coordinator = await _build_coordinator(hass, mock_config_entry)
     await coordinator.async_refresh()
 
     assert set(coordinator.data) == {DOG_SLUG}
-    assert len(aioclient_mock.mock_calls) == 1
+    # One dog_relations GET plus exactly one activity_totals POST -- the
+    # FRIEND relation must not trigger its own follow-up call.
+    assert len(aioclient_mock.mock_calls) == 2
     snapshot = coordinator.data[DOG_SLUG]
-    assert snapshot.activity_points == 100
-    assert snapshot.activity_goal_percent == 50.0
+    assert snapshot.activity_points == 150
+    assert snapshot.activity_goal_percent == 75.0
     assert snapshot.battery_level == 80
 
 
@@ -85,6 +94,9 @@ async def test_malformed_dog_record_is_skipped(
                 {"status": "OWNER", "dog": {"slug": DOG_SLUG, "name": "Fido"}},
             ]
         },
+    )
+    aioclient_mock.post(
+        f"{API_ROOT}/api/v2/activity_totals", json={"activity_value": 42}
     )
 
     coordinator = await _build_coordinator(hass, mock_config_entry)

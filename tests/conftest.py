@@ -64,8 +64,12 @@ def mock_config_entry() -> MockConfigEntry:
 
 @pytest.fixture
 def mock_fitbark_api(aioclient_mock):
-    """Stub the single dog_relations call with a healthy one-dog account."""
+    """Stub a healthy one-dog account: dog_relations plus its follow-up
+    activity_totals("today") call (see api.py's async_get_snapshots)."""
     aioclient_mock.get(
         f"{API_ROOT}/api/v2/dog_relations", json=load_fixture("dogs_list.json")
+    )
+    aioclient_mock.post(
+        f"{API_ROOT}/api/v2/activity_totals", json=load_fixture("activity_total.json")
     )
     return aioclient_mock
