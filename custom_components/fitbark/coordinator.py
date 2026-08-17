@@ -8,6 +8,7 @@ import logging
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
+from homeassistant.helpers.event import async_track_time_change
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .api import FitBarkApiClient, FitBarkApiError, FitBarkAuthError, FitBarkDogSnapshot
@@ -40,6 +41,26 @@ class FitBarkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, FitBarkDogSna
             update_interval=timedelta(hours=hours),
         )
         self.api = api
+
+        # scan_interval can be as long as 12h, which would otherwise leave
+        # activity_points_today (see api.py) showing yesterday's frozen
+        # total for hours after midnight -- the next *scheduled* poll may
+        # not land until well into the new day. Force an extra refresh
+        # shortly after midnight regardless of scan_interval so "today"
+        # catches up promptly no matter how the interval is configured.
+        # This fires on HA's local midnight, a practical approximation --
+        # a dog whose own tz (see api.py's per-dog "today" resolution)
+        # differs from HA's could still see a short lag, bounded by
+        # scan_interval.
+        entry.async_on_unload(
+            async_track_time_change(
+                hass, self._async_midnight_refresh, hour=0, minute=2, second=0
+            )
+        )
+
+    async def _async_midnight_refresh(self, _now=None) -> None:
+        """Force a refresh shortly after local midnight (see __init__)."""
+        await self.async_request_refresh()
 
     async def _async_update_data(self) -> dict[str, FitBarkDogSnapshot]:
         try:
